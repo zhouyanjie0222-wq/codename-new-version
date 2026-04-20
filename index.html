@@ -36,6 +36,13 @@
         .card.revealed .card-inner {
             transform: rotateY(180deg);
         }
+        .card:hover .card-inner {
+            box-shadow: 0 10px 15px -3px rgb(79 70 229 / 0.2);
+            transform: translateY(-2px);
+        }
+        .card.revealed:hover .card-inner {
+            transform: rotateY(180deg) translateY(0);
+        }
         .card-front, .card-back {
             position: absolute;
             width: 100%;
@@ -82,10 +89,13 @@
                 <button onclick="toggleSettings()" class="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-semibold shadow-sm">
                     <i data-lucide="settings" class="w-4 h-4"></i> Settings
                 </button>
-                <button onclick="resetGame()" class="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors font-semibold shadow-sm">
-                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i> New Game
+                <button onclick="resetCurrentBoard()" class="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors font-semibold shadow-sm">
+                    <i data-lucide="rotate-cw" class="w-4 h-4"></i> Reset Board
                 </button>
-                <button onclick="toggleSpymaster()" id="spymaster-btn" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold shadow-sm shadow-indigo-100">
+                <button onclick="resetGame()" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold shadow-sm shadow-indigo-100">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i> New Game
+                </button>
+                <button onclick="toggleSpymaster()" id="spymaster-btn" class="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors font-semibold shadow-sm">
                     <i data-lucide="eye" class="w-4 h-4"></i> Spymaster View
                 </button>
             </div>
@@ -163,12 +173,15 @@
                     <i data-lucide="play" class="w-6 h-6 text-yellow-700"></i>
                 </button>
             </div>
-            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between">
-                <div>
-                    <p class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Current Turn</p>
-                    <p id="turn-display" class="text-2xl font-bold capitalize">--</p>
+            <div id="active-turn-banner" class="bg-slate-900 text-white p-4 rounded-xl shadow-2xl col-span-2 flex items-center justify-between transition-all duration-500">
+                <div class="flex items-center gap-4">
+                    <div id="turn-indicator-dot" class="w-4 h-4 rounded-full animate-pulse bg-red-500"></div>
+                    <div>
+                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Operative</p>
+                        <p id="turn-display" class="text-2xl font-black uppercase tracking-tight">Red Team</p>
+                    </div>
                 </div>
-                <div id="game-status" class="hidden px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg font-bold text-sm uppercase tracking-wider">
+                <div id="game-status" class="hidden px-6 py-2 bg-white text-slate-900 rounded-full font-black text-sm uppercase tracking-tighter shadow-lg scale-110">
                     GAME OVER
                 </div>
             </div>
@@ -185,24 +198,8 @@
 
             <!-- Side Sidebar / Clues & Stats -->
             <div class="space-y-6">
-                <!-- Teacher / Info Panel -->
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-                    <h3 class="font-bold text-slate-800 flex items-center gap-2">
-                        <i data-lucide="book-open" class="w-5 h-5 text-indigo-500"></i>
-                        Word Discovery
-                    </h3>
-                    <p class="text-sm text-slate-500">Click a revealed card to learn more about the word using AI.</p>
-                    
-                    <div id="definition-view" class="hidden space-y-3 bg-indigo-50 p-4 rounded-xl border border-indigo-100 animate-in fade-in duration-300">
-                        <p id="def-word" class="font-bold text-indigo-900 text-lg uppercase"></p>
-                        <div id="definition-box" class="text-sm text-indigo-800 h-40 overflow-y-auto leading-relaxed italic">
-                            Fetching definition...
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Input Panel -->
-                <div class="bg-slate-900 p-6 rounded-2xl shadow-xl text-white space-y-4">
+                <div class="bg-slate-900 p-6 rounded-2xl shadow-xl text-white space-y-4 border border-slate-800">
                     <h3 class="font-bold flex items-center gap-2">
                         <i data-lucide="users" class="w-5 h-5 text-indigo-400"></i>
                         Spymaster Clue
@@ -303,7 +300,6 @@
             lucide.createIcons();
             
             document.getElementById('clue-history').innerHTML = '';
-            document.getElementById('definition-view').classList.add('hidden');
         }
 
         function renderBoard() {
@@ -357,11 +353,6 @@
 
             checkWin();
             updateStats();
-
-            // If revealed, allow exploring definition
-            if (card.revealed) {
-                showDefinition(card);
-            }
         }
         window.handleCardClick = handleCardClick;
 
@@ -376,8 +367,20 @@
 
             document.getElementById('red-score').innerText = redLeft;
             document.getElementById('blue-score').innerText = blueLeft;
-            document.getElementById('turn-display').innerText = `${currentTeam} turn`;
-            document.getElementById('turn-display').style.color = currentTeam === 'red' ? '#dc2626' : '#2563eb';
+            
+            const turnDisplay = document.getElementById('turn-display');
+            const turnDot = document.getElementById('turn-indicator-dot');
+            const turnBanner = document.getElementById('active-turn-banner');
+
+            turnDisplay.innerText = `${currentTeam} team`;
+            
+            if (currentTeam === 'red') {
+                turnDot.className = "w-4 h-4 rounded-full animate-pulse bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]";
+                turnBanner.className = "bg-red-900 text-white p-4 rounded-xl shadow-2xl col-span-2 flex items-center justify-between border-2 border-red-500 transition-all duration-500";
+            } else {
+                turnDot.className = "w-4 h-4 rounded-full animate-pulse bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)]";
+                turnBanner.className = "bg-blue-900 text-white p-4 rounded-xl shadow-2xl col-span-2 flex items-center justify-between border-2 border-blue-500 transition-all duration-500";
+            }
         }
 
         function checkWin() {
@@ -393,37 +396,6 @@
             const banner = document.getElementById('game-status');
             banner.innerText = msg;
             banner.classList.remove('hidden');
-        }
-
-        async function showDefinition(card) {
-            const view = document.getElementById('definition-view');
-            const box = document.getElementById('definition-box');
-            const wordEl = document.getElementById('def-word');
-
-            wordEl.innerText = card.word;
-            view.classList.remove('hidden');
-
-            if (card.definition) {
-                box.innerText = card.definition;
-                return;
-            }
-
-            if (!ai) {
-                box.innerText = "Add your Gemini API Key in the script to enable definitions.";
-                return;
-            }
-
-            box.innerText = "Thinking...";
-            try {
-                const response = await ai.models.generateContent({
-                    model: "gemini-3-flash-preview",
-                    contents: `Define "${card.word}" simply for a non-native English student and give 1 short example sentence.`,
-                });
-                card.definition = response.text;
-                box.innerText = card.definition;
-            } catch (e) {
-                box.innerText = "Error fetching definition.";
-            }
         }
 
         async function generateAIWords() {
@@ -540,6 +512,18 @@
             document.getElementById('game-status').classList.add('hidden');
             resetTimer();
             generateBoard();
+        };
+
+        window.resetCurrentBoard = () => {
+            if(confirm('Reset all cards but keep the same words?')) {
+                gameState = 'playing';
+                document.getElementById('game-status').classList.add('hidden');
+                cards.forEach(c => c.revealed = false);
+                currentTeam = startingTeam;
+                renderBoard();
+                updateStats();
+                resetTimer();
+            }
         };
 
         window.toggleSpymaster = () => {
