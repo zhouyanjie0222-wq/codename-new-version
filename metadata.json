@@ -1,6 +1,6 @@
 {
-  "name": "Codename",
-  "description": "An English vocabulary-focused Codenames game for teachers to use in the classroom.",
+  "name": "English Vocab Codenames",
+  "description": "An interactive classroom Codenames game tailored for English vocabulary learning, featuring AI-powered word definitions and custom word lists for teachers.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }
